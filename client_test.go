@@ -236,8 +236,16 @@ func TestIntegrationLakehouseEndpoints(t *testing.T) {
 		}
 	}
 
-	// The mock does not support /autocomplete yet; keep endpoint coverage in unit-level request/response tests
-	// and enable integration coverage once the mock adds support.
+	autocompleteResp, err := client.Autocomplete(ctx, AutocompleteRequest{Statement: "SEL"})
+	if err != nil {
+		t.Fatalf("Autocomplete error: %v", err)
+	}
+	if autocompleteResp.Statement != "SEL" {
+		t.Fatalf("unexpected autocomplete statement: %+v", autocompleteResp)
+	}
+	if len(autocompleteResp.Suggestions) == 0 {
+		t.Fatalf("expected autocomplete suggestions, got %+v", autocompleteResp)
+	}
 
 	uploadErr := client.Upload(ctx, UploadParams{Catalog: "test", Schema: "public", Table: "events", Format: UploadFormatCSV, Mode: UploadModeCreate}, strings.NewReader("id,name\n1,Alice\n"))
 	var badReq *BadRequestError

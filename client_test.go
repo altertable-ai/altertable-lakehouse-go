@@ -65,7 +65,7 @@ func TestAppendEncodesSinglePayloadAndAuth(t *testing.T) {
 			t.Fatalf("unexpected catalog: %s", got)
 		}
 		body, _ := io.ReadAll(r.Body)
-		if !strings.Contains(string(body), "\"Single\"") {
+		if !strings.Contains(string(body), "\"id\":1") || strings.Contains(string(body), "\"Single\"") {
 			t.Fatalf("unexpected body: %s", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -86,6 +86,15 @@ func TestAppendEncodesSinglePayloadAndAuth(t *testing.T) {
 func TestUploadRequiresPrimaryKeyForUpsert(t *testing.T) {
 	client := &Client{}
 	err := client.Upload(context.Background(), UploadParams{Mode: UploadModeUpsert}, strings.NewReader("csv"))
+	var cfgErr *ConfigurationError
+	if !errors.As(err, &cfgErr) {
+		t.Fatalf("expected ConfigurationError, got %v", err)
+	}
+}
+
+func TestAppendRejectsSingleAndBatchTogether(t *testing.T) {
+	client := newTestClient(t, "https://api.altertable.ai")
+	_, err := client.Append(context.Background(), AppendParams{Catalog: "catalog", Schema: "public", Table: "events"}, AppendRequest{Single: AppendPayload{"id": 1}, Batch: []AppendPayload{{"id": 2}}})
 	var cfgErr *ConfigurationError
 	if !errors.As(err, &cfgErr) {
 		t.Fatalf("expected ConfigurationError, got %v", err)
@@ -216,9 +225,19 @@ func TestIntegrationLakehouseEndpoints(t *testing.T) {
 	if appendResp.OK {
 		t.Fatalf("expected mock append invalid-data response, got %+v", appendResp)
 	}
-	if appendResp.ErrorCode == nil || *appendResp.ErrorCode != "invalid-data" {
+	if appendResp.ErrorCode == nil || *appendResp.ErrorCode != AppendErrorCodeInvalidData {
 		t.Fatalf("unexpected append response: %+v", appendResp)
 	}
+
+	taskResp, err := client.GetTask(ctx, "123e4567-e89b-12d3-a456-426614174000")
+	if err == nil && taskResp != nil {
+		if taskResp.TaskID == "" {
+			t.Fatalf("unexpected task response: %+v", taskResp)
+		}
+	}
+
+	// The mock does not support /autocomplete yet; keep endpoint coverage in unit-level request/response tests
+	// and enable integration coverage once the mock adds support.
 
 	uploadErr := client.Upload(ctx, UploadParams{Catalog: "test", Schema: "public", Table: "events", Format: UploadFormatCSV, Mode: UploadModeCreate}, strings.NewReader("id,name\n1,Alice\n"))
 	var badReq *BadRequestError

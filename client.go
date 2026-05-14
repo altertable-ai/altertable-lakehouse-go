@@ -138,6 +138,12 @@ func (c *Client) Validate(ctx context.Context, req ValidateRequest) (*ValidateRe
 	return resp, err
 }
 
+func (c *Client) Autocomplete(ctx context.Context, req AutocompleteRequest) (*AutocompleteResponse, error) {
+	resp := &AutocompleteResponse{}
+	err := c.doJSON(ctx, operationSpec{Name: "autocomplete", Method: http.MethodPost, Path: "/autocomplete"}, nil, req, resp)
+	return resp, err
+}
+
 func (c *Client) Upload(ctx context.Context, params UploadParams, content io.Reader) error {
 	if params.Mode == UploadModeUpsert && strings.TrimSpace(params.PrimaryKey) == "" {
 		return &ConfigurationError{apiErrorBase: apiErrorBase{Message: "upload requires primary_key when mode=upsert"}}
@@ -150,6 +156,12 @@ func (c *Client) Upload(ctx context.Context, params UploadParams, content io.Rea
 
 	_, err = c.do(ctx, operationSpec{Name: "upload", Method: http.MethodPost, Path: "/upload", RawBody: bytes.NewReader(body), ContentType: "application/octet-stream"}, params.values(), nil)
 	return err
+}
+
+func (c *Client) GetTask(ctx context.Context, taskID string) (*TaskResponse, error) {
+	resp := &TaskResponse{}
+	err := c.doJSON(ctx, operationSpec{Name: "getTask", Method: http.MethodGet, Path: "/tasks/" + taskID}, nil, nil, resp)
+	return resp, err
 }
 
 func (c *Client) GetQuery(ctx context.Context, queryID string) (*QueryLogResponse, error) {
@@ -230,6 +242,9 @@ func (c *Client) do(ctx context.Context, spec operationSpec, query url.Values, r
 	if spec.RawBody == nil && requestBody != nil {
 		bodyBytes, err = json.Marshal(requestBody)
 		if err != nil {
+			if errors.Is(err, ErrInvalidAppendRequest) {
+				return nil, &ConfigurationError{apiErrorBase: apiErrorBase{Message: err.Error(), Operation: spec.Name, Method: spec.Method, Path: spec.Path, Cause: err}}
+			}
 			return nil, &SerializationError{apiErrorBase: apiErrorBase{Message: "failed to encode request body", Operation: spec.Name, Method: spec.Method, Path: spec.Path, Cause: err}}
 		}
 	}

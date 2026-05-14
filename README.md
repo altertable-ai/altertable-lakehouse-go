@@ -120,14 +120,25 @@ fmt.Println(cancelResp, err)
 Appends one payload or a batch of payloads to a table.
 
 ```go
+sync := true
 appendResp, err := client.Append(ctx, altertable.AppendParams{
 	Catalog: "catalog",
 	Schema:  "public",
 	Table:   "events",
+	Sync:    &sync,
 }, altertable.AppendRequest{
-	Single: map[string]any{"id": 1, "name": "Alice"},
+	Single: altertable.AppendPayload{"id": 1, "name": "Alice"},
 })
 fmt.Println(appendResp, err)
+```
+
+#### `client.GetTask(ctx, taskID) (*TaskResponse, error)`
+
+Fetches async append task status.
+
+```go
+taskResp, err := client.GetTask(ctx, "123e4567-e89b-12d3-a456-426614174000")
+fmt.Println(taskResp, err)
 ```
 
 #### `client.Upload(ctx, params, content) error`
@@ -154,6 +165,15 @@ Validates a SQL statement without executing it.
 ```go
 validateResp, err := client.Validate(ctx, altertable.ValidateRequest{Statement: "SELECT 1"})
 fmt.Println(validateResp, err)
+```
+
+#### `client.Autocomplete(ctx, request) (*AutocompleteResponse, error)`
+
+Requests SQL autocomplete suggestions.
+
+```go
+autocompleteResp, err := client.Autocomplete(ctx, altertable.AutocompleteRequest{Statement: "SEL"})
+fmt.Println(autocompleteResp, err)
 ```
 
 ## Configuration

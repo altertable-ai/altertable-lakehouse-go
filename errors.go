@@ -1,11 +1,15 @@
 package altertable
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
 
-var ioEOF = io.EOF
+var (
+	ioEOF                   = io.EOF
+	ErrInvalidAppendRequest = errors.New("append request must contain either Single or Batch, not both")
+)
 
 type apiErrorBase struct {
 	Message         string

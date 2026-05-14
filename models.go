@@ -1,8 +1,10 @@
 package altertable
 
 import (
+	"encoding/json"
 	"io"
 	"net/url"
+	"strconv"
 )
 
 type ComputeSize string
@@ -44,30 +46,69 @@ const (
 	SessionKindPostgres         SessionKind = "Postgres"
 )
 
+type AppendErrorCode string
+
+const (
+	AppendErrorCodeInvalidData        AppendErrorCode = "invalid-data"
+	AppendErrorCodeIncompatibleSchema AppendErrorCode = "incompatible-schema"
+)
+
+type TaskStatus string
+
+const (
+	TaskStatusPending   TaskStatus = "pending"
+	TaskStatusCompleted TaskStatus = "completed"
+)
+
+type AppendPayload map[string]any
+
 type AppendRequest struct {
-	Single map[string]any   `json:"Single,omitempty"`
-	Batch  []map[string]any `json:"Batch,omitempty"`
+	Single AppendPayload
+	Batch  []AppendPayload
+}
+
+func (r AppendRequest) MarshalJSON() ([]byte, error) {
+	switch {
+	case r.Single != nil && r.Batch != nil:
+		return nil, ErrInvalidAppendRequest
+	case r.Single != nil:
+		return json.Marshal(r.Single)
+	case r.Batch != nil:
+		return json.Marshal(r.Batch)
+	default:
+		return []byte("null"), nil
+	}
 }
 
 type AppendParams struct {
 	Catalog string
 	Schema  string
 	Table   string
+	Sync    *bool
 }
 
 func (p AppendParams) values() url.Values {
-	return url.Values{
+	values := url.Values{
 		"catalog": []string{p.Catalog},
 		"schema":  []string{p.Schema},
 		"table":   []string{p.Table},
 	}
+	if p.Sync != nil {
+		values.Set("sync", strconv.FormatBool(*p.Sync))
+	}
+	return values
 }
 
 type AppendResponse struct {
-	OK           bool    `json:"ok"`
-	ErrorCode    *string `json:"error_code"`
-	ErrorMessage *string `json:"error_message"`
-	TaskID       *string `json:"task_id"`
+	OK           bool             `json:"ok"`
+	ErrorCode    *AppendErrorCode `json:"error_code"`
+	ErrorMessage *string          `json:"error_message"`
+	TaskID       *string          `json:"task_id"`
+}
+
+type TaskResponse struct {
+	TaskID string     `json:"task_id"`
+	Status TaskStatus `json:"status"`
 }
 
 type QueryRequest struct {
@@ -218,4 +259,18 @@ type ValidateResponse struct {
 	Statement         string            `json:"statement"`
 	ConnectionsErrors map[string]string `json:"connections_errors"`
 	Error             *string           `json:"error"`
+}
+
+type AutocompleteRequest struct {
+	Statement      string  `json:"statement"`
+	Catalog        *string `json:"catalog,omitempty"`
+	Schema         *string `json:"schema,omitempty"`
+	SessionID      *string `json:"session_id,omitempty"`
+	MaxSuggestions *int    `json:"max_suggestions,omitempty"`
+}
+
+type AutocompleteResponse struct {
+	Suggestions       []string          `json:"suggestions"`
+	Statement         string            `json:"statement"`
+	ConnectionsErrors map[string]string `json:"connections_errors"`
 }

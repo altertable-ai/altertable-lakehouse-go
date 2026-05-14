@@ -21,7 +21,7 @@ const (
 	defaultBaseURL         = "https://api.altertable.ai"
 	defaultConnectTimeout  = 5 * time.Second
 	defaultResponseTimeout = 60 * time.Second
-	defaultUserAgent       = "altertable-lakehouse-go/0.1.0"
+	defaultUserAgent       = "altertable-lakehouse-go/" + Version
 )
 
 type HTTPDoer interface {

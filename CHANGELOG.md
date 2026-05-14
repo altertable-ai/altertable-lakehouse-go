@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.2.0...github.com/altertable-ai/altertable-lakehouse-go-v0.3.0) (2026-05-14)
+
+
+### Features
+
+* **client:** add v0.11.0 lakehouse endpoints ([#7](https://github.com/altertable-ai/altertable-lakehouse-go/issues/7)) ([e0a16f6](https://github.com/altertable-ai/altertable-lakehouse-go/commit/e0a16f64cb2813395b5eb8fea6d9352e7b1addc2))
+
 ## [0.2.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.1.0...github.com/altertable-ai/altertable-lakehouse-go-v0.2.0) (2026-05-14)
 
 

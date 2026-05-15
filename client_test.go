@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -159,7 +158,7 @@ func TestQueryParseErrorIncludesLineContext(t *testing.T) {
 func TestIntegrationLakehouseEndpoints(t *testing.T) {
 	baseURL := integrationBaseURL(t)
 	if !mockReachable(baseURL) {
-		t.Skipf("Altertable mock server not reachable at %s", baseURL)
+		t.Skipf("Altertable mock server not reachable at %s (ensure Docker is running for testcontainers, set ALTERTABLE_MOCK_BASE_URL, or run the mock on %s)", baseURL, localhostMockURL())
 	}
 	client := newTestClient(t, baseURL)
 	ctx := context.Background()
@@ -266,20 +265,27 @@ func newTestClient(t *testing.T, baseURL string) *Client {
 
 func integrationBaseURL(t *testing.T) string {
 	t.Helper()
-	port := os.Getenv("ALTERTABLE_MOCK_PORT")
-	if port == "" {
-		port = "15000"
+	if integrationMockBaseURL != "" {
+		return integrationMockBaseURL
 	}
-	return "http://localhost:" + port
+	return localhostMockURL()
 }
 
 func mockReachable(baseURL string) bool {
-	client := http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Post(baseURL+"/validate", "application/json", strings.NewReader(`{"statement":"SELECT 1"}`))
-	if err == nil && resp.Body != nil {
-		resp.Body.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+"/validate", strings.NewReader(`{"statement":"SELECT 1"}`))
+	if err != nil {
+		return false
 	}
-	return err == nil
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth("testuser", "testpass")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
 func asFloat(v any) float64 {

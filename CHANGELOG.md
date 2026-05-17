@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.3.0...github.com/altertable-ai/altertable-lakehouse-go-v0.4.0) (2026-05-17)
+
+
+### Features
+
+* **autocomplete:** re-enable autocomplete ([#10](https://github.com/altertable-ai/altertable-lakehouse-go/issues/10)) ([8cb1415](https://github.com/altertable-ai/altertable-lakehouse-go/commit/8cb1415a13cb10febb0fcf3bd4f57b7c9c1488a5))
+
 ## [0.3.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.2.0...github.com/altertable-ai/altertable-lakehouse-go-v0.3.0) (2026-05-14)
 
 

@@ -269,8 +269,46 @@ type AutocompleteRequest struct {
 	MaxSuggestions *int    `json:"max_suggestions,omitempty"`
 }
 
+// AutocompleteSuggestion matches the Lakehouse autocomplete payload for each entry.
+type AutocompleteSuggestion struct {
+	Suggestion      string  `json:"suggestion"`
+	SuggestionStart int     `json:"suggestion_start"`
+	SuggestionType  string  `json:"suggestion_type"`
+	SuggestionScore float64 `json:"suggestion_score"`
+}
+
+// AutocompleteResponse is the decoded /autocomplete JSON body.
 type AutocompleteResponse struct {
-	Suggestions       []string          `json:"suggestions"`
-	Statement         string            `json:"statement"`
-	ConnectionsErrors map[string]string `json:"connections_errors"`
+	Suggestions       []AutocompleteSuggestion `json:"suggestions"`
+	Statement         string                   `json:"statement"`
+	ConnectionsErrors map[string]string        `json:"connections_errors"`
+}
+
+func (r *AutocompleteResponse) UnmarshalJSON(data []byte) error {
+	var probe struct {
+		Suggestions       json.RawMessage   `json:"suggestions"`
+		Statement         string            `json:"statement"`
+		ConnectionsErrors map[string]string `json:"connections_errors"`
+	}
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return err
+	}
+	r.Statement = probe.Statement
+	r.ConnectionsErrors = probe.ConnectionsErrors
+
+	var asStrings []string
+	if err := json.Unmarshal(probe.Suggestions, &asStrings); err == nil {
+		r.Suggestions = make([]AutocompleteSuggestion, len(asStrings))
+		for i, s := range asStrings {
+			r.Suggestions[i] = AutocompleteSuggestion{Suggestion: s}
+		}
+		return nil
+	}
+
+	var asRich []AutocompleteSuggestion
+	if err := json.Unmarshal(probe.Suggestions, &asRich); err != nil {
+		return err
+	}
+	r.Suggestions = asRich
+	return nil
 }

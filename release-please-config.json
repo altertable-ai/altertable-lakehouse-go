@@ -2,7 +2,13 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "package-name": "github.com/altertable-ai/altertable-lakehouse-go"
+      "package-name": "github.com/altertable-ai/altertable-lakehouse-go",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "version.go"
+        }
+      ]
     }
   }
 }

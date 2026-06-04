@@ -147,11 +147,11 @@ Uploads CSV, JSON, or Parquet content to a table.
 
 ```go
 err = client.Upload(ctx, altertable.UploadParams{
-	Catalog: "catalog",
-	Schema:  "public",
-	Table:   "events",
-	Format:  altertable.UploadFormatCSV,
-	Mode:    altertable.UploadModeCreate,
+	Catalog:     "catalog",
+	Schema:      "public",
+	Table:       "events",
+	Mode:        altertable.UploadModeCreate,
+	ContentType: "text/csv",
 }, strings.NewReader("id,name\n1,Alice\n"))
 fmt.Println(err)
 ```

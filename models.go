@@ -17,14 +17,6 @@ const (
 	ComputeSizeXL ComputeSize = "XL"
 )
 
-type UploadFormat string
-
-const (
-	UploadFormatCSV     UploadFormat = "csv"
-	UploadFormatJSON    UploadFormat = "json"
-	UploadFormatParquet UploadFormat = "parquet"
-)
-
 type UploadMode string
 
 const (
@@ -228,12 +220,12 @@ type CancelQueryResponse struct {
 }
 
 type UploadParams struct {
-	Catalog    string
-	Schema     string
-	Table      string
-	Format     UploadFormat
-	Mode       UploadMode
-	PrimaryKey string
+	Catalog     string
+	Schema      string
+	Table       string
+	Mode        UploadMode
+	PrimaryKey  string
+	ContentType string
 }
 
 func (p UploadParams) values() url.Values {
@@ -241,8 +233,9 @@ func (p UploadParams) values() url.Values {
 		"catalog": []string{p.Catalog},
 		"schema":  []string{p.Schema},
 		"table":   []string{p.Table},
-		"format":  []string{string(p.Format)},
-		"mode":    []string{string(p.Mode)},
+	}
+	if p.Mode != "" {
+		values.Set("mode", string(p.Mode))
 	}
 	if p.PrimaryKey != "" {
 		values.Set("primary_key", p.PrimaryKey)

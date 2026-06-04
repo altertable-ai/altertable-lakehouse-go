@@ -145,16 +145,17 @@ func (c *Client) Autocomplete(ctx context.Context, req AutocompleteRequest) (*Au
 }
 
 func (c *Client) Upload(ctx context.Context, params UploadParams, content io.Reader) error {
-	if params.Mode == UploadModeUpsert && strings.TrimSpace(params.PrimaryKey) == "" {
-		return &ConfigurationError{apiErrorBase: apiErrorBase{Message: "upload requires primary_key when mode=upsert"}}
-	}
-
 	body, err := io.ReadAll(content)
 	if err != nil {
 		return &SerializationError{apiErrorBase: apiErrorBase{Message: "failed to read upload content", Cause: err}}
 	}
 
-	_, err = c.do(ctx, operationSpec{Name: "upload", Method: http.MethodPost, Path: "/upload", RawBody: bytes.NewReader(body), ContentType: "application/octet-stream"}, params.values(), nil)
+	contentType := params.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	_, err = c.do(ctx, operationSpec{Name: "upsert", Method: http.MethodPost, Path: "/upsert", RawBody: bytes.NewReader(body), ContentType: contentType}, params.values(), nil)
 	return err
 }
 

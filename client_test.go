@@ -237,10 +237,10 @@ func TestIntegrationLakehouseEndpoints(t *testing.T) {
 		t.Fatalf("expected autocomplete suggestions, got %+v", autocompleteResp)
 	}
 
-	uploadErr := client.Upload(ctx, UploadParams{Catalog: "test", Schema: "public", Table: "events", Mode: UploadModeCreate, ContentType: "text/csv"}, strings.NewReader("id,name\n1,Alice\n"))
+	upsertErr := client.Upsert(ctx, UpsertParams{Catalog: "test", Schema: "public", Table: "events", Mode: UpsertModeCreate}, strings.NewReader("id,name\n1,Alice\n"))
 	var badReq *BadRequestError
-	if !errors.As(uploadErr, &badReq) {
-		t.Fatalf("expected BadRequestError from mock upsert, got %v", uploadErr)
+	if !errors.As(upsertErr, &badReq) {
+		t.Fatalf("expected BadRequestError from mock upsert, got %v", upsertErr)
 	}
 }
 

@@ -17,13 +17,13 @@ const (
 	ComputeSizeXL ComputeSize = "XL"
 )
 
-type UploadMode string
+type UpsertMode string
 
 const (
-	UploadModeCreate    UploadMode = "create"
-	UploadModeAppend    UploadMode = "append"
-	UploadModeUpsert    UploadMode = "upsert"
-	UploadModeOverwrite UploadMode = "overwrite"
+	UpsertModeCreate    UpsertMode = "create"
+	UpsertModeAppend    UpsertMode = "append"
+	UpsertModeUpsert    UpsertMode = "upsert"
+	UpsertModeOverwrite UpsertMode = "overwrite"
 )
 
 type SessionKind string
@@ -219,16 +219,15 @@ type CancelQueryResponse struct {
 	Message   string `json:"message"`
 }
 
-type UploadParams struct {
+type UpsertParams struct {
 	Catalog     string
 	Schema      string
 	Table       string
-	Mode        UploadMode
+	Mode        UpsertMode
 	PrimaryKey  string
-	ContentType string
 }
 
-func (p UploadParams) values() url.Values {
+func (p UpsertParams) values() url.Values {
 	values := url.Values{
 		"catalog": []string{p.Catalog},
 		"schema":  []string{p.Schema},

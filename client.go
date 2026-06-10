@@ -144,18 +144,13 @@ func (c *Client) Autocomplete(ctx context.Context, req AutocompleteRequest) (*Au
 	return resp, err
 }
 
-func (c *Client) Upload(ctx context.Context, params UploadParams, content io.Reader) error {
+func (c *Client) Upsert(ctx context.Context, params UpsertParams, content io.Reader) error {
 	body, err := io.ReadAll(content)
 	if err != nil {
-		return &SerializationError{apiErrorBase: apiErrorBase{Message: "failed to read upload content", Cause: err}}
+		return &SerializationError{apiErrorBase: apiErrorBase{Message: "failed to read upsert content", Cause: err}}
 	}
 
-	contentType := params.ContentType
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	_, err = c.do(ctx, operationSpec{Name: "upsert", Method: http.MethodPost, Path: "/upsert", RawBody: bytes.NewReader(body), ContentType: contentType}, params.values(), nil)
+	_, err = c.do(ctx, operationSpec{Name: "upsert", Method: http.MethodPost, Path: "/upsert", RawBody: bytes.NewReader(body)}, params.values(), nil)
 	return err
 }
 

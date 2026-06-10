@@ -4,8 +4,8 @@ Initial bootstrap of the Go Lakehouse SDK against `altertable-client-specs` `v0.
 
 ## Impact analysis
 
-- Adds the initial public Go client surface: `NewClient`, `Append`, `Query`, `QueryAll`, `GetQuery`, `CancelQuery`, `Upload`, and `Validate`.
-- Introduces typed models for lakehouse requests/responses, query metadata, query logs, upload configuration, and stats/progress payloads.
+- Adds the initial public Go client surface: `NewClient`, `Append`, `Query`, `QueryAll`, `GetQuery`, `CancelQuery`, `Upsert`, and `Validate`.
+- Introduces typed models for lakehouse requests/responses, query metadata, query logs, upsert configuration, and stats/progress payloads.
 - Adds typed error handling, auth resolution, retry/timeout configuration, and NDJSON parsing.
 - Adds both unit coverage and mock-backed integration coverage for all required endpoints.
 - Docs affected: README usage/configuration/examples, changelog bootstrap entry.
@@ -18,4 +18,4 @@ Initial bootstrap of the Go Lakehouse SDK against `altertable-client-specs` `v0.
 ## Notes
 
 - The mock server currently emits query columns as a JSON string array on `/query`; the Go client accepts that form and object-based column schemas.
-- `upload` integration coverage currently exercises the request path against the mock and asserts the expected `400` response for a non-existent catalog, since the mock does not ship a writable fixture catalog by default.
+- `upsert` integration coverage currently exercises the request path against the mock and asserts the expected `400` response for a non-existent catalog, since the mock does not ship a writable fixture catalog by default.

@@ -141,17 +141,16 @@ taskResp, err := client.GetTask(ctx, "123e4567-e89b-12d3-a456-426614174000")
 fmt.Println(taskResp, err)
 ```
 
-#### `client.Upload(ctx, params, content) error`
+#### `client.Upsert(ctx, params, content) error`
 
-Uploads CSV, JSON, or Parquet content to a table.
+Upserts CSV, JSON, or Parquet content to a table.
 
 ```go
-err = client.Upload(ctx, altertable.UploadParams{
+err = client.Upsert(ctx, altertable.UpsertParams{
 	Catalog: "catalog",
 	Schema:  "public",
 	Table:   "events",
-	Format:  altertable.UploadFormatCSV,
-	Mode:    altertable.UploadModeCreate,
+	Mode:    altertable.UpsertModeCreate,
 }, strings.NewReader("id,name\n1,Alice\n"))
 fmt.Println(err)
 ```

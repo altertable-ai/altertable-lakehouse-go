@@ -82,15 +82,6 @@ func TestAppendEncodesSinglePayloadAndAuth(t *testing.T) {
 	}
 }
 
-func TestUploadRequiresPrimaryKeyForUpsert(t *testing.T) {
-	client := &Client{}
-	err := client.Upload(context.Background(), UploadParams{Mode: UploadModeUpsert}, strings.NewReader("csv"))
-	var cfgErr *ConfigurationError
-	if !errors.As(err, &cfgErr) {
-		t.Fatalf("expected ConfigurationError, got %v", err)
-	}
-}
-
 func TestAppendRejectsSingleAndBatchTogether(t *testing.T) {
 	client := newTestClient(t, "https://api.altertable.ai")
 	_, err := client.Append(context.Background(), AppendParams{Catalog: "catalog", Schema: "public", Table: "events"}, AppendRequest{Single: AppendPayload{"id": 1}, Batch: []AppendPayload{{"id": 2}}})
@@ -246,10 +237,10 @@ func TestIntegrationLakehouseEndpoints(t *testing.T) {
 		t.Fatalf("expected autocomplete suggestions, got %+v", autocompleteResp)
 	}
 
-	uploadErr := client.Upload(ctx, UploadParams{Catalog: "test", Schema: "public", Table: "events", Format: UploadFormatCSV, Mode: UploadModeCreate}, strings.NewReader("id,name\n1,Alice\n"))
+	upsertErr := client.Upsert(ctx, UpsertParams{Catalog: "test", Schema: "public", Table: "events", Mode: UpsertModeCreate}, strings.NewReader("id,name\n1,Alice\n"))
 	var badReq *BadRequestError
-	if !errors.As(uploadErr, &badReq) {
-		t.Fatalf("expected BadRequestError from mock upload, got %v", uploadErr)
+	if !errors.As(upsertErr, &badReq) {
+		t.Fatalf("expected BadRequestError from mock upsert, got %v", upsertErr)
 	}
 }
 

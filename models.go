@@ -17,21 +17,13 @@ const (
 	ComputeSizeXL ComputeSize = "XL"
 )
 
-type UploadFormat string
+type UpsertMode string
 
 const (
-	UploadFormatCSV     UploadFormat = "csv"
-	UploadFormatJSON    UploadFormat = "json"
-	UploadFormatParquet UploadFormat = "parquet"
-)
-
-type UploadMode string
-
-const (
-	UploadModeCreate    UploadMode = "create"
-	UploadModeAppend    UploadMode = "append"
-	UploadModeUpsert    UploadMode = "upsert"
-	UploadModeOverwrite UploadMode = "overwrite"
+	UpsertModeCreate    UpsertMode = "create"
+	UpsertModeAppend    UpsertMode = "append"
+	UpsertModeUpsert    UpsertMode = "upsert"
+	UpsertModeOverwrite UpsertMode = "overwrite"
 )
 
 type SessionKind string
@@ -227,22 +219,22 @@ type CancelQueryResponse struct {
 	Message   string `json:"message"`
 }
 
-type UploadParams struct {
+type UpsertParams struct {
 	Catalog    string
 	Schema     string
 	Table      string
-	Format     UploadFormat
-	Mode       UploadMode
+	Mode       UpsertMode
 	PrimaryKey string
 }
 
-func (p UploadParams) values() url.Values {
+func (p UpsertParams) values() url.Values {
 	values := url.Values{
 		"catalog": []string{p.Catalog},
 		"schema":  []string{p.Schema},
 		"table":   []string{p.Table},
-		"format":  []string{string(p.Format)},
-		"mode":    []string{string(p.Mode)},
+	}
+	if p.Mode != "" {
+		values.Set("mode", string(p.Mode))
 	}
 	if p.PrimaryKey != "" {
 		values.Set("primary_key", p.PrimaryKey)

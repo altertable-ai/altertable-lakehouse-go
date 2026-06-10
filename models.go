@@ -220,11 +220,11 @@ type CancelQueryResponse struct {
 }
 
 type UpsertParams struct {
-	Catalog     string
-	Schema      string
-	Table       string
-	Mode        UpsertMode
-	PrimaryKey  string
+	Catalog    string
+	Schema     string
+	Table      string
+	Mode       UpsertMode
+	PrimaryKey string
 }
 
 func (p UpsertParams) values() url.Values {

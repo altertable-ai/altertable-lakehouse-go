@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.4.0...github.com/altertable-ai/altertable-lakehouse-go-v0.4.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* **api:** expose upsert API ([#13](https://github.com/altertable-ai/altertable-lakehouse-go/issues/13)) ([777417b](https://github.com/altertable-ai/altertable-lakehouse-go/commit/777417b0c933f882dd229938c677353bc2275b8c))
+
 ## [0.4.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.3.0...github.com/altertable-ai/altertable-lakehouse-go-v0.4.0) (2026-05-17)
 
 

@@ -68,7 +68,7 @@ client, err := altertable.NewClient(altertable.Config{
 
 #### `client.Query(ctx, request) (*QueryStreamResult, error)`
 
-Runs a SQL query and returns metadata, columns, and a row iterator backed by the NDJSON response.
+Runs a SQL query and returns metadata, typed columns, and a row iterator backed by the NDJSON response. Backend-emitted stream errors are returned as `*altertable.QueryError` with the stream line context.
 
 ```go
 stream, err := client.Query(ctx, altertable.QueryRequest{Statement: "SELECT 1"})
@@ -141,6 +141,21 @@ taskResp, err := client.GetTask(ctx, "123e4567-e89b-12d3-a456-426614174000")
 fmt.Println(taskResp, err)
 ```
 
+#### `client.Upload(ctx, params, content) error`
+
+Uploads CSV, JSON, or Parquet content to a table. Use `create_append` to create a missing table or append to an existing one.
+
+```go
+err = client.Upload(ctx, altertable.UploadParams{
+	Catalog:     "catalog",
+	Schema:      "public",
+	Table:       "events",
+	Mode:        altertable.UploadModeCreateAppend,
+	ContentType: "text/csv",
+}, strings.NewReader("id,name\n1,Alice\n"))
+fmt.Println(err)
+```
+
 #### `client.Upsert(ctx, params, content) error`
 
 Upserts CSV, JSON, or Parquet content to a table.
@@ -148,12 +163,16 @@ Upserts CSV, JSON, or Parquet content to a table.
 ```go
 err = client.Upsert(ctx, altertable.UpsertParams{
 	Catalog: "catalog",
-	Schema:  "public",
-	Table:   "events",
-	Mode:    altertable.UpsertModeCreate,
+	Schema:      "public",
+	Table:       "events",
+	PrimaryKey:  "account_id,event_id",
+	CursorField: "updated_at,sequence",
+	ContentType: "text/csv",
 }, strings.NewReader("id,name\n1,Alice\n"))
 fmt.Println(err)
 ```
+
+`PrimaryKey` and `CursorField` accept comma-separated column lists. On a key collision, the backend compares cursor columns left to right and retains the higher value.
 
 ### Validation
 

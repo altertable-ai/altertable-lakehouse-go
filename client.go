@@ -150,7 +150,19 @@ func (c *Client) Upsert(ctx context.Context, params UpsertParams, content io.Rea
 		return &SerializationError{apiErrorBase: apiErrorBase{Message: "failed to read upsert content", Cause: err}}
 	}
 
-	_, err = c.do(ctx, operationSpec{Name: "upsert", Method: http.MethodPost, Path: "/upsert", RawBody: bytes.NewReader(body)}, params.values(), nil)
+	_, err = c.do(ctx, operationSpec{Name: "upsert", Method: http.MethodPost, Path: "/upsert", ContentType: params.ContentType, RawBody: bytes.NewReader(body)}, params.values(), nil)
+	return err
+}
+
+// Upload sends raw CSV, JSON, or Parquet content to a table. The service infers the format from
+// UploadParams.ContentType when supplied, or the payload bytes when it is omitted.
+func (c *Client) Upload(ctx context.Context, params UploadParams, content io.Reader) error {
+	body, err := io.ReadAll(content)
+	if err != nil {
+		return &SerializationError{apiErrorBase: apiErrorBase{Message: "failed to read upload content", Cause: err}}
+	}
+
+	_, err = c.do(ctx, operationSpec{Name: "upload", Method: http.MethodPost, Path: "/upload", ContentType: params.ContentType, RawBody: bytes.NewReader(body)}, params.values(), nil)
 	return err
 }
 
@@ -173,6 +185,9 @@ func (c *Client) CancelQuery(ctx context.Context, queryID, sessionID string) (*C
 }
 
 func (c *Client) Query(ctx context.Context, req QueryRequest) (*QueryStreamResult, error) {
+	if req.ComputeSize != nil && *req.ComputeSize == ComputeSizeAuto && req.SessionID != nil && *req.SessionID != "" {
+		return nil, &ConfigurationError{apiErrorBase: apiErrorBase{Message: "compute_size AUTO cannot be combined with session_id", Operation: "query"}}
+	}
 	resp, err := c.do(ctx, operationSpec{Name: "query", Method: http.MethodPost, Path: "/query", ContentType: "application/json", Accept: "application/x-ndjson"}, nil, req)
 	if err != nil {
 		return nil, err
@@ -362,6 +377,9 @@ func parseQueryStream(reader io.Reader) (*QueryStreamResult, error) {
 			continue
 		}
 		if lineIndex == 1 {
+			if queryErr := decodeQueryStreamError(line, lineIndex); queryErr != nil {
+				return nil, queryErr
+			}
 			if bytes.HasPrefix(line, []byte("[{")) {
 				if err := json.Unmarshal(line, &result.Columns); err != nil {
 					return nil, &ParseError{apiErrorBase: apiErrorBase{Message: "failed to parse query columns", Cause: err}, LineIndex: lineIndex, RawContent: string(line)}
@@ -379,6 +397,9 @@ func parseQueryStream(reader io.Reader) (*QueryStreamResult, error) {
 			lineIndex++
 			continue
 		}
+		if queryErr := decodeQueryStreamError(line, lineIndex); queryErr != nil {
+			return nil, queryErr
+		}
 		var row []any
 		if err := json.Unmarshal(line, &row); err != nil {
 			return nil, &ParseError{apiErrorBase: apiErrorBase{Message: "failed to parse query row", Cause: err}, LineIndex: lineIndex, RawContent: string(line)}
@@ -393,6 +414,20 @@ func parseQueryStream(reader io.Reader) (*QueryStreamResult, error) {
 		return nil, &ParseError{apiErrorBase: apiErrorBase{Message: "query stream missing metadata or columns"}, LineIndex: lineIndex}
 	}
 	return result, nil
+}
+
+func decodeQueryStreamError(line []byte, lineIndex int) error {
+	var payload struct {
+		Error *string `json:"error"`
+	}
+	if err := json.Unmarshal(line, &payload); err != nil || payload.Error == nil {
+		return nil
+	}
+	return &QueryError{
+		apiErrorBase: apiErrorBase{Message: *payload.Error, Operation: "query"},
+		LineIndex:    lineIndex,
+		RawContent:   string(line),
+	}
 }
 
 func mapTransportError(spec operationSpec, err error) error {

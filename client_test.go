@@ -146,6 +146,68 @@ func TestQueryParseErrorIncludesLineContext(t *testing.T) {
 	}
 }
 
+func TestQueryStreamErrorIncludesLineContext(t *testing.T) {
+	stream := strings.NewReader("{\"statement\":\"SELECT 1\",\"connections_errors\":{},\"session_id\":\"s\",\"query_id\":\"q\"}\n{\"error\":\"Catalog Error: missing table\"}\n")
+	_, err := parseQueryStream(stream)
+	var queryErr *QueryError
+	if !errors.As(err, &queryErr) {
+		t.Fatalf("expected QueryError, got %v", err)
+	}
+	if queryErr.LineIndex != 1 || !strings.Contains(queryErr.RawContent, "missing table") {
+		t.Fatalf("unexpected query error: %+v", queryErr)
+	}
+}
+
+func TestQueryRejectsAutoComputeSizeWithSession(t *testing.T) {
+	client := newTestClient(t, "https://api.altertable.ai")
+	auto := ComputeSizeAuto
+	sessionID := "session-1"
+	_, err := client.Query(context.Background(), QueryRequest{Statement: "SELECT 1", ComputeSize: &auto, SessionID: &sessionID})
+	var configErr *ConfigurationError
+	if !errors.As(err, &configErr) {
+		t.Fatalf("expected ConfigurationError, got %v", err)
+	}
+}
+
+func TestUploadAndUpsertEncodeV013Parameters(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/upload":
+			if got := r.URL.Query().Get("mode"); got != string(UploadModeCreateAppend) {
+				t.Fatalf("unexpected upload mode: %q", got)
+			}
+			if got := r.Header.Get("Content-Type"); got != "text/csv" {
+				t.Fatalf("unexpected upload content type: %q", got)
+			}
+		case "/upsert":
+			if got := r.URL.Query().Get("primary_key"); got != "account_id,event_id" {
+				t.Fatalf("unexpected primary_key: %q", got)
+			}
+			if got := r.URL.Query().Get("cursor_field"); got != "updated_at,sequence" {
+				t.Fatalf("unexpected cursor_field: %q", got)
+			}
+			if got := r.URL.Query().Get("mode"); got != "" {
+				t.Fatalf("upsert must not send mode: %q", got)
+			}
+			if got := r.Header.Get("Content-Type"); got != "application/json" {
+				t.Fatalf("unexpected upsert content type: %q", got)
+			}
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL)
+	if err := client.Upload(context.Background(), UploadParams{Catalog: "catalog", Schema: "public", Table: "events", Mode: UploadModeCreateAppend, ContentType: "text/csv"}, strings.NewReader("id\n1\n")); err != nil {
+		t.Fatalf("Upload error: %v", err)
+	}
+	if err := client.Upsert(context.Background(), UpsertParams{Catalog: "catalog", Schema: "public", Table: "events", PrimaryKey: "account_id,event_id", CursorField: "updated_at,sequence", ContentType: "application/json"}, strings.NewReader("[{\"id\":1}]")); err != nil {
+		t.Fatalf("Upsert error: %v", err)
+	}
+}
+
 func TestIntegrationLakehouseEndpoints(t *testing.T) {
 	baseURL := integrationBaseURL(t)
 	if !mockReachable(baseURL) {
@@ -237,7 +299,7 @@ func TestIntegrationLakehouseEndpoints(t *testing.T) {
 		t.Fatalf("expected autocomplete suggestions, got %+v", autocompleteResp)
 	}
 
-	upsertErr := client.Upsert(ctx, UpsertParams{Catalog: "test", Schema: "public", Table: "events", Mode: UpsertModeCreate}, strings.NewReader("id,name\n1,Alice\n"))
+	upsertErr := client.Upsert(ctx, UpsertParams{Catalog: "test", Schema: "public", Table: "events", PrimaryKey: "id"}, strings.NewReader("id,name\n1,Alice\n"))
 	var badReq *BadRequestError
 	if !errors.As(upsertErr, &badReq) {
 		t.Fatalf("expected BadRequestError from mock upsert, got %v", upsertErr)

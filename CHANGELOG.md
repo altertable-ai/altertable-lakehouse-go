@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.4.1...github.com/altertable-ai/altertable-lakehouse-go-v1.0.0) (2026-09-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** align lakehouse client with v0.13.0 ([#21](https://github.com/altertable-ai/altertable-lakehouse-go/issues/21))
+
+### Features
+
+* **api:** align lakehouse client with v0.13.0 ([#21](https://github.com/altertable-ai/altertable-lakehouse-go/issues/21)) ([f1fc45b](https://github.com/altertable-ai/altertable-lakehouse-go/commit/f1fc45bed316bc5696c1d6060c3b72dbe29161c8))
+
 ## [Unreleased]
 
 ### Added

@@ -68,7 +68,7 @@ client, err := altertable.NewClient(altertable.Config{
 
 #### `client.Query(ctx, request) (*QueryStreamResult, error)`
 
-Runs a SQL query and returns metadata, typed columns, and a row iterator backed by the NDJSON response. Backend-emitted stream errors are returned as `*altertable.QueryError` with the stream line context.
+Runs a default-format SQL query and returns metadata, typed columns, and a row iterator backed by the NDJSON response. It reads rows only as you call `Next`. Backend-emitted stream errors are returned as `*altertable.QueryError` with the stream line context.
 
 ```go
 stream, err := client.Query(ctx, altertable.QueryRequest{Statement: "SELECT 1"})
@@ -84,6 +84,25 @@ for {
 	}
 	fmt.Println(row)
 }
+```
+
+#### `client.QueryRaw(ctx, request) (*QueryRawResult, error)`
+
+Runs a CSV, JSONL, or Parquet query without attempting to parse it as the typed NDJSON stream. Set `QueryRequest.Format` to `QueryFormatCSV`, `QueryFormatJSONL`, or `QueryFormatParquet`; the returned result implements `io.ReadCloser` and must be closed.
+
+```go
+format := altertable.QueryFormatCSV
+raw, err := client.QueryRaw(ctx, altertable.QueryRequest{
+	Statement: "SELECT * FROM events",
+	Format:    &format,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer raw.Close()
+
+csvBytes, err := io.ReadAll(raw)
+fmt.Println(string(csvBytes), err)
 ```
 
 #### `client.QueryAll(ctx, request) (*QueryAllResult, error)`
@@ -143,7 +162,7 @@ fmt.Println(taskResp, err)
 
 #### `client.Upload(ctx, params, content) error`
 
-Uploads CSV, JSON, or Parquet content to a table. Use `create_append` to create a missing table or append to an existing one.
+Uploads CSV, JSON, or Parquet content to a table. The mode defaults to `append`; use `create_append` to create a missing table or append to an existing one.
 
 ```go
 err = client.Upload(ctx, altertable.UploadParams{

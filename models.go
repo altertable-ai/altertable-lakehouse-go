@@ -1,6 +1,8 @@
 package altertable
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/url"
@@ -132,7 +134,6 @@ type QueryRequest struct {
 	Schema      *string      `json:"schema,omitempty"`
 	SessionID   *string      `json:"session_id,omitempty"`
 	Timezone    *string      `json:"timezone,omitempty"`
-	Visible     *bool        `json:"visible,omitempty"`
 }
 
 type QueryMetadata struct {
@@ -152,20 +153,45 @@ type QueryColumn struct {
 }
 
 type QueryStreamResult struct {
-	Metadata QueryMetadata
-	Columns  []QueryColumn
-	Rows     [][]any
-	index    int
-	close    func() error
+	Metadata  QueryMetadata
+	Columns   []QueryColumn
+	scanner   *bufio.Scanner
+	lineIndex int
+	done      bool
+	close     func() error
 }
 
 func (r *QueryStreamResult) Next() ([]any, error) {
-	if r.index >= len(r.Rows) {
+	if r.done {
 		return nil, io.EOF
 	}
-	row := r.Rows[r.index]
-	r.index++
-	return row, nil
+
+	for r.scanner.Scan() {
+		line := bytes.TrimSpace(r.scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+
+		lineIndex := r.lineIndex
+		r.lineIndex++
+		if queryErr := decodeQueryStreamError(line, lineIndex); queryErr != nil {
+			r.done = true
+			return nil, queryErr
+		}
+
+		var row []any
+		if err := json.Unmarshal(line, &row); err != nil {
+			r.done = true
+			return nil, &ParseError{apiErrorBase: apiErrorBase{Message: "failed to parse query row", Cause: err}, LineIndex: lineIndex, RawContent: string(line)}
+		}
+		return row, nil
+	}
+
+	r.done = true
+	if err := r.scanner.Err(); err != nil {
+		return nil, &ParseError{apiErrorBase: apiErrorBase{Message: "failed to read query stream", Cause: err}, LineIndex: r.lineIndex}
+	}
+	return nil, io.EOF
 }
 
 func (r *QueryStreamResult) Close() error {
@@ -173,6 +199,13 @@ func (r *QueryStreamResult) Close() error {
 		return r.close()
 	}
 	return nil
+}
+
+// QueryRawResult is the unparsed body of a CSV, JSONL, or Parquet query response.
+// It implements io.ReadCloser; callers must close it when finished reading.
+type QueryRawResult struct {
+	io.ReadCloser
+	ContentType string
 }
 
 type QueryAllResult struct {
@@ -272,9 +305,11 @@ func (p UploadParams) values() url.Values {
 		"schema":  []string{p.Schema},
 		"table":   []string{p.Table},
 	}
-	if p.Mode != "" {
-		values.Set("mode", string(p.Mode))
+	mode := p.Mode
+	if mode == "" {
+		mode = UploadModeAppend
 	}
+	values.Set("mode", string(mode))
 	return values
 }
 

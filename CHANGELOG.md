@@ -5,12 +5,18 @@
 ### Added
 
 - Add typed upload parameters with `create_append` support.
-- Add query options for SQL dialect, output format, and expanded compute sizes.
+- Add `QueryRaw` for CSV, JSONL, and Parquet query responses.
+- Add query options for SQL dialect and expanded compute sizes.
 
 ### Changed
 
 - Send composite upsert keys and cursor fields without the retired upsert mode parameter.
-- Surface backend-emitted NDJSON query errors as typed errors with stream line context.
+- Make `Query` lazily stream default-format NDJSON rows and surface backend errors with line context during iteration.
+- Default uploads without an explicit mode to `append`.
+
+### Removed
+
+- Remove unsupported `QueryRequest.Visible`.
 
 ## [0.4.1](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.4.0...github.com/altertable-ai/altertable-lakehouse-go-v0.4.1) (2026-06-30)
 

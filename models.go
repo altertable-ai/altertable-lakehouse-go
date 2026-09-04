@@ -1,6 +1,8 @@
 package altertable
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/url"
@@ -10,20 +12,33 @@ import (
 type ComputeSize string
 
 const (
-	ComputeSizeXS ComputeSize = "XS"
-	ComputeSizeS  ComputeSize = "S"
-	ComputeSizeM  ComputeSize = "M"
-	ComputeSizeL  ComputeSize = "L"
-	ComputeSizeXL ComputeSize = "XL"
+	ComputeSizeXS   ComputeSize = "XS"
+	ComputeSizeS    ComputeSize = "S"
+	ComputeSizeM    ComputeSize = "M"
+	ComputeSizeL    ComputeSize = "L"
+	ComputeSizeXL   ComputeSize = "XL"
+	ComputeSize2XL  ComputeSize = "2XL"
+	ComputeSize3XL  ComputeSize = "3XL"
+	ComputeSize4XL  ComputeSize = "4XL"
+	ComputeSizeAuto ComputeSize = "AUTO"
 )
 
-type UpsertMode string
+type QueryFormat string
 
 const (
-	UpsertModeCreate    UpsertMode = "create"
-	UpsertModeAppend    UpsertMode = "append"
-	UpsertModeUpsert    UpsertMode = "upsert"
-	UpsertModeOverwrite UpsertMode = "overwrite"
+	QueryFormatDefault QueryFormat = "default"
+	QueryFormatCSV     QueryFormat = "csv"
+	QueryFormatJSONL   QueryFormat = "jsonl"
+	QueryFormatParquet QueryFormat = "parquet"
+)
+
+type UploadMode string
+
+const (
+	UploadModeCreate       UploadMode = "create"
+	UploadModeAppend       UploadMode = "append"
+	UploadModeCreateAppend UploadMode = "create_append"
+	UploadModeOverwrite    UploadMode = "overwrite"
 )
 
 type SessionKind string
@@ -108,7 +123,9 @@ type QueryRequest struct {
 	Cache       *bool        `json:"cache,omitempty"`
 	Catalog     *string      `json:"catalog,omitempty"`
 	ComputeSize *ComputeSize `json:"compute_size,omitempty"`
+	Dialect     *string      `json:"dialect,omitempty"`
 	Ephemeral   *bool        `json:"ephemeral,omitempty"`
+	Format      *QueryFormat `json:"format,omitempty"`
 	Limit       *int         `json:"limit,omitempty"`
 	Offset      *int         `json:"offset,omitempty"`
 	QueryID     *string      `json:"query_id,omitempty"`
@@ -117,7 +134,6 @@ type QueryRequest struct {
 	Schema      *string      `json:"schema,omitempty"`
 	SessionID   *string      `json:"session_id,omitempty"`
 	Timezone    *string      `json:"timezone,omitempty"`
-	Visible     *bool        `json:"visible,omitempty"`
 }
 
 type QueryMetadata struct {
@@ -137,20 +153,45 @@ type QueryColumn struct {
 }
 
 type QueryStreamResult struct {
-	Metadata QueryMetadata
-	Columns  []QueryColumn
-	Rows     [][]any
-	index    int
-	close    func() error
+	Metadata  QueryMetadata
+	Columns   []QueryColumn
+	scanner   *bufio.Scanner
+	lineIndex int
+	done      bool
+	close     func() error
 }
 
 func (r *QueryStreamResult) Next() ([]any, error) {
-	if r.index >= len(r.Rows) {
+	if r.done {
 		return nil, io.EOF
 	}
-	row := r.Rows[r.index]
-	r.index++
-	return row, nil
+
+	for r.scanner.Scan() {
+		line := bytes.TrimSpace(r.scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+
+		lineIndex := r.lineIndex
+		r.lineIndex++
+		if queryErr := decodeQueryStreamError(line, lineIndex); queryErr != nil {
+			r.done = true
+			return nil, queryErr
+		}
+
+		var row []any
+		if err := json.Unmarshal(line, &row); err != nil {
+			r.done = true
+			return nil, &ParseError{apiErrorBase: apiErrorBase{Message: "failed to parse query row", Cause: err}, LineIndex: lineIndex, RawContent: string(line)}
+		}
+		return row, nil
+	}
+
+	r.done = true
+	if err := r.scanner.Err(); err != nil {
+		return nil, &ParseError{apiErrorBase: apiErrorBase{Message: "failed to read query stream", Cause: err}, LineIndex: r.lineIndex}
+	}
+	return nil, io.EOF
 }
 
 func (r *QueryStreamResult) Close() error {
@@ -158,6 +199,13 @@ func (r *QueryStreamResult) Close() error {
 		return r.close()
 	}
 	return nil
+}
+
+// QueryRawResult is the unparsed body of a CSV, JSONL, or Parquet query response.
+// It implements io.ReadCloser; callers must close it when finished reading.
+type QueryRawResult struct {
+	io.ReadCloser
+	ContentType string
 }
 
 type QueryAllResult struct {
@@ -220,11 +268,12 @@ type CancelQueryResponse struct {
 }
 
 type UpsertParams struct {
-	Catalog    string
-	Schema     string
-	Table      string
-	Mode       UpsertMode
-	PrimaryKey string
+	Catalog     string
+	Schema      string
+	Table       string
+	PrimaryKey  string
+	CursorField string
+	ContentType string
 }
 
 func (p UpsertParams) values() url.Values {
@@ -233,12 +282,34 @@ func (p UpsertParams) values() url.Values {
 		"schema":  []string{p.Schema},
 		"table":   []string{p.Table},
 	}
-	if p.Mode != "" {
-		values.Set("mode", string(p.Mode))
-	}
 	if p.PrimaryKey != "" {
 		values.Set("primary_key", p.PrimaryKey)
 	}
+	if p.CursorField != "" {
+		values.Set("cursor_field", p.CursorField)
+	}
+	return values
+}
+
+type UploadParams struct {
+	Catalog     string
+	Schema      string
+	Table       string
+	Mode        UploadMode
+	ContentType string
+}
+
+func (p UploadParams) values() url.Values {
+	values := url.Values{
+		"catalog": []string{p.Catalog},
+		"schema":  []string{p.Schema},
+		"table":   []string{p.Table},
+	}
+	mode := p.Mode
+	if mode == "" {
+		mode = UploadModeAppend
+	}
+	values.Set("mode", string(mode))
 	return values
 }
 

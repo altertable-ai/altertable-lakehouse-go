@@ -49,6 +49,17 @@ type ParseError struct {
 	RawContent string
 }
 
+// QueryError reports a backend-emitted error object inside a successful NDJSON query response.
+type QueryError struct {
+	apiErrorBase
+	LineIndex  int
+	RawContent string
+}
+
+func (e *QueryError) Error() string {
+	return fmt.Sprintf("query stream error (line=%d): %s", e.LineIndex, e.Message)
+}
+
 func (e *ParseError) Error() string {
 	if e.RawContent == "" {
 		return fmt.Sprintf("%s (line=%d)", e.Message, e.LineIndex)

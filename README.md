@@ -68,7 +68,7 @@ client, err := altertable.NewClient(altertable.Config{
 
 #### `client.Query(ctx, request) (*QueryStreamResult, error)`
 
-Runs a SQL query and returns metadata, columns, and a row iterator backed by the NDJSON response.
+Runs a default-format SQL query and returns metadata, typed columns, and a row iterator backed by the NDJSON response. It reads rows only as you call `Next`. Backend-emitted stream errors are returned as `*altertable.QueryError` with the stream line context.
 
 ```go
 stream, err := client.Query(ctx, altertable.QueryRequest{Statement: "SELECT 1"})
@@ -84,6 +84,25 @@ for {
 	}
 	fmt.Println(row)
 }
+```
+
+#### `client.QueryRaw(ctx, request) (*QueryRawResult, error)`
+
+Runs a CSV, JSONL, or Parquet query without attempting to parse it as the typed NDJSON stream. Set `QueryRequest.Format` to `QueryFormatCSV`, `QueryFormatJSONL`, or `QueryFormatParquet`; the returned result implements `io.ReadCloser` and must be closed.
+
+```go
+format := altertable.QueryFormatCSV
+raw, err := client.QueryRaw(ctx, altertable.QueryRequest{
+	Statement: "SELECT * FROM events",
+	Format:    &format,
+})
+if err != nil {
+	log.Fatal(err)
+}
+defer raw.Close()
+
+csvBytes, err := io.ReadAll(raw)
+fmt.Println(string(csvBytes), err)
 ```
 
 #### `client.QueryAll(ctx, request) (*QueryAllResult, error)`
@@ -141,6 +160,21 @@ taskResp, err := client.GetTask(ctx, "123e4567-e89b-12d3-a456-426614174000")
 fmt.Println(taskResp, err)
 ```
 
+#### `client.Upload(ctx, params, content) error`
+
+Uploads CSV, JSON, or Parquet content to a table. The mode defaults to `append`; use `create_append` to create a missing table or append to an existing one.
+
+```go
+err = client.Upload(ctx, altertable.UploadParams{
+	Catalog:     "catalog",
+	Schema:      "public",
+	Table:       "events",
+	Mode:        altertable.UploadModeCreateAppend,
+	ContentType: "text/csv",
+}, strings.NewReader("id,name\n1,Alice\n"))
+fmt.Println(err)
+```
+
 #### `client.Upsert(ctx, params, content) error`
 
 Upserts CSV, JSON, or Parquet content to a table.
@@ -148,12 +182,16 @@ Upserts CSV, JSON, or Parquet content to a table.
 ```go
 err = client.Upsert(ctx, altertable.UpsertParams{
 	Catalog: "catalog",
-	Schema:  "public",
-	Table:   "events",
-	Mode:    altertable.UpsertModeCreate,
+	Schema:      "public",
+	Table:       "events",
+	PrimaryKey:  "account_id,event_id",
+	CursorField: "updated_at,sequence",
+	ContentType: "text/csv",
 }, strings.NewReader("id,name\n1,Alice\n"))
 fmt.Println(err)
 ```
+
+`PrimaryKey` and `CursorField` accept comma-separated column lists. On a key collision, the backend compares cursor columns left to right and retains the higher value.
 
 ### Validation
 

@@ -3,6 +3,7 @@ package altertable
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -136,13 +137,189 @@ func TestQueryParseErrorIncludesLineContext(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(t, server.URL)
-	_, err := client.Query(context.Background(), QueryRequest{Statement: "SELECT 1"})
+	stream, err := client.Query(context.Background(), QueryRequest{Statement: "SELECT 1"})
+	if err != nil {
+		t.Fatalf("Query error: %v", err)
+	}
+	defer stream.Close()
+	_, err = stream.Next()
 	var parseErr *ParseError
 	if !errors.As(err, &parseErr) {
 		t.Fatalf("expected ParseError, got %v", err)
 	}
 	if parseErr.LineIndex != 2 || !strings.Contains(parseErr.RawContent, "bad json") {
 		t.Fatalf("unexpected parse error: %+v", parseErr)
+	}
+}
+
+func TestQueryNextReturnsLateStreamError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		fmt.Fprint(w, "{\"statement\":\"SELECT 1\",\"connections_errors\":{},\"session_id\":\"s\",\"query_id\":\"q\"}\n")
+		fmt.Fprint(w, "[{\"name\":\"col\",\"type\":\"INTEGER\"}]\n")
+		fmt.Fprint(w, "[1]\n")
+		fmt.Fprint(w, "{\"error\":\"stream failed\"}\n")
+	}))
+	defer server.Close()
+
+	stream, err := newTestClient(t, server.URL).Query(context.Background(), QueryRequest{Statement: "SELECT 1"})
+	if err != nil {
+		t.Fatalf("Query error: %v", err)
+	}
+	defer stream.Close()
+
+	row, err := stream.Next()
+	if err != nil || len(row) != 1 || asFloat(row[0]) != 1 {
+		t.Fatalf("unexpected first row: %#v, %v", row, err)
+	}
+	_, err = stream.Next()
+	var queryErr *QueryError
+	if !errors.As(err, &queryErr) {
+		t.Fatalf("expected QueryError, got %v", err)
+	}
+	if queryErr.LineIndex != 3 || !strings.Contains(queryErr.RawContent, "stream failed") {
+		t.Fatalf("unexpected query error: %+v", queryErr)
+	}
+}
+
+func TestQueryStreamErrorIncludesLineContext(t *testing.T) {
+	stream := strings.NewReader("{\"statement\":\"SELECT 1\",\"connections_errors\":{},\"session_id\":\"s\",\"query_id\":\"q\"}\n{\"error\":\"Catalog Error: missing table\"}\n")
+	_, err := parseQueryStream(stream)
+	var queryErr *QueryError
+	if !errors.As(err, &queryErr) {
+		t.Fatalf("expected QueryError, got %v", err)
+	}
+	if queryErr.LineIndex != 1 || !strings.Contains(queryErr.RawContent, "missing table") {
+		t.Fatalf("unexpected query error: %+v", queryErr)
+	}
+}
+
+func TestQueryRejectsAutoComputeSizeWithSession(t *testing.T) {
+	client := newTestClient(t, "https://api.altertable.ai")
+	auto := ComputeSizeAuto
+	for _, sessionID := range []string{"session-1", ""} {
+		_, err := client.Query(context.Background(), QueryRequest{Statement: "SELECT 1", ComputeSize: &auto, SessionID: &sessionID})
+		var configErr *ConfigurationError
+		if !errors.As(err, &configErr) {
+			t.Fatalf("expected ConfigurationError for session_id %q, got %v", sessionID, err)
+		}
+	}
+}
+
+func TestQueryRejectsRawFormats(t *testing.T) {
+	client := newTestClient(t, "https://api.altertable.ai")
+	format := QueryFormatCSV
+	_, err := client.Query(context.Background(), QueryRequest{Statement: "SELECT 1", Format: &format})
+	var configErr *ConfigurationError
+	if !errors.As(err, &configErr) {
+		t.Fatalf("expected ConfigurationError, got %v", err)
+	}
+
+	for _, rawFormat := range []*QueryFormat{nil, ptrQueryFormat(QueryFormatDefault), ptrQueryFormat(QueryFormat("xml"))} {
+		_, err = client.QueryRaw(context.Background(), QueryRequest{Statement: "SELECT 1", Format: rawFormat})
+		if !errors.As(err, &configErr) {
+			t.Fatalf("expected ConfigurationError for raw format %v, got %v", rawFormat, err)
+		}
+	}
+}
+
+func ptrQueryFormat(format QueryFormat) *QueryFormat {
+	return &format
+}
+
+func TestQueryRawReturnsUnparsedFormattedResponse(t *testing.T) {
+	tests := []struct {
+		format QueryFormat
+		accept string
+		body   string
+	}{
+		{QueryFormatCSV, "text/csv", "id,name\n1,Alice\n"},
+		{QueryFormatJSONL, "application/x-ndjson", "{\"id\":1}\n"},
+		{QueryFormatParquet, "application/vnd.apache.parquet", "PAR1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.format), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if got := r.Header.Get("Accept"); got != tt.accept {
+					t.Fatalf("unexpected Accept header: %q", got)
+				}
+				var request QueryRequest
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Fatalf("decode request: %v", err)
+				}
+				if request.Format == nil || *request.Format != tt.format {
+					t.Fatalf("unexpected query format: %+v", request.Format)
+				}
+				w.Header().Set("Content-Type", tt.accept)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			result, err := newTestClient(t, server.URL).QueryRaw(context.Background(), QueryRequest{Statement: "SELECT 1", Format: &tt.format})
+			if err != nil {
+				t.Fatalf("QueryRaw error: %v", err)
+			}
+			defer result.Close()
+			body, err := io.ReadAll(result)
+			if err != nil || string(body) != tt.body || result.ContentType != tt.accept {
+				t.Fatalf("unexpected raw result: body=%q contentType=%q err=%v", body, result.ContentType, err)
+			}
+		})
+	}
+}
+
+func TestUploadAndUpsertEncodeV013Parameters(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/upload":
+			if got := r.URL.Query().Get("mode"); got != string(UploadModeCreateAppend) {
+				t.Fatalf("unexpected upload mode: %q", got)
+			}
+			if got := r.Header.Get("Content-Type"); got != "text/csv" {
+				t.Fatalf("unexpected upload content type: %q", got)
+			}
+		case "/upsert":
+			if got := r.URL.Query().Get("primary_key"); got != "account_id,event_id" {
+				t.Fatalf("unexpected primary_key: %q", got)
+			}
+			if got := r.URL.Query().Get("cursor_field"); got != "updated_at,sequence" {
+				t.Fatalf("unexpected cursor_field: %q", got)
+			}
+			if got := r.URL.Query().Get("mode"); got != "" {
+				t.Fatalf("upsert must not send mode: %q", got)
+			}
+			if got := r.Header.Get("Content-Type"); got != "application/json" {
+				t.Fatalf("unexpected upsert content type: %q", got)
+			}
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL)
+	if err := client.Upload(context.Background(), UploadParams{Catalog: "catalog", Schema: "public", Table: "events", Mode: UploadModeCreateAppend, ContentType: "text/csv"}, strings.NewReader("id\n1\n")); err != nil {
+		t.Fatalf("Upload error: %v", err)
+	}
+	if err := client.Upsert(context.Background(), UpsertParams{Catalog: "catalog", Schema: "public", Table: "events", PrimaryKey: "account_id,event_id", CursorField: "updated_at,sequence", ContentType: "application/json"}, strings.NewReader("[{\"id\":1}]")); err != nil {
+		t.Fatalf("Upsert error: %v", err)
+	}
+}
+
+func TestUploadDefaultsToAppend(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("mode"); got != string(UploadModeAppend) {
+			t.Fatalf("unexpected default upload mode: %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	err := newTestClient(t, server.URL).Upload(context.Background(), UploadParams{Catalog: "catalog", Schema: "public", Table: "events"}, strings.NewReader("id\n1\n"))
+	if err != nil {
+		t.Fatalf("Upload error: %v", err)
 	}
 }
 
@@ -237,7 +414,7 @@ func TestIntegrationLakehouseEndpoints(t *testing.T) {
 		t.Fatalf("expected autocomplete suggestions, got %+v", autocompleteResp)
 	}
 
-	upsertErr := client.Upsert(ctx, UpsertParams{Catalog: "test", Schema: "public", Table: "events", Mode: UpsertModeCreate}, strings.NewReader("id,name\n1,Alice\n"))
+	upsertErr := client.Upsert(ctx, UpsertParams{Catalog: "test", Schema: "public", Table: "events", PrimaryKey: "id"}, strings.NewReader("id,name\n1,Alice\n"))
 	var badReq *BadRequestError
 	if !errors.As(upsertErr, &badReq) {
 		t.Fatalf("expected BadRequestError from mock upsert, got %v", upsertErr)

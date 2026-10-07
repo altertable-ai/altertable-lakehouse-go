@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v1.0.0...github.com/altertable-ai/altertable-lakehouse-go-v1.1.0) (2026-10-07)
+
+
+### Features
+
+* **query:** support bind parameters ([#24](https://github.com/altertable-ai/altertable-lakehouse-go/issues/24)) ([97ec947](https://github.com/altertable-ai/altertable-lakehouse-go/commit/97ec947a59f692816a9b5c68fa6e2902b781a9d8))
+
 ## [1.0.0](https://github.com/altertable-ai/altertable-lakehouse-go/compare/github.com/altertable-ai/altertable-lakehouse-go-v0.4.1...github.com/altertable-ai/altertable-lakehouse-go-v1.0.0) (2026-09-07)
 
 

@@ -152,6 +152,25 @@ func TestQueryParseErrorIncludesLineContext(t *testing.T) {
 	}
 }
 
+func TestQueryEncodesNamedAndPositionalBindValues(t *testing.T) {
+	for _, request := range []QueryRequest{
+		{Statement: "SELECT $min_age", Params: map[string]any{"min_age": 25}},
+		{Statement: "SELECT $1", Params: []any{25}},
+	} {
+		body, err := json.Marshal(request)
+		if err != nil {
+			t.Fatalf("marshal query request: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode query request: %v", err)
+		}
+		if payload["params"] == nil {
+			t.Fatalf("expected params in %s", body)
+		}
+	}
+}
+
 func TestQueryNextReturnsLateStreamError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-ndjson")

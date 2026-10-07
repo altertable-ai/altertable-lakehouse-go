@@ -71,7 +71,10 @@ client, err := altertable.NewClient(altertable.Config{
 Runs a default-format SQL query and returns metadata, typed columns, and a row iterator backed by the NDJSON response. It reads rows only as you call `Next`. Backend-emitted stream errors are returned as `*altertable.QueryError` with the stream line context.
 
 ```go
-stream, err := client.Query(ctx, altertable.QueryRequest{Statement: "SELECT 1"})
+stream, err := client.Query(ctx, altertable.QueryRequest{
+	Statement: "SELECT $min_age",
+	Params: map[string]any{"min_age": 25},
+})
 if err != nil {
 	log.Fatal(err)
 }

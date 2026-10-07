@@ -15,6 +15,7 @@
 
 ### Added
 
+- Add named and positional query bind values through `QueryRequest.Params`.
 - Add typed upload parameters with `create_append` support.
 - Add `QueryRaw` for CSV, JSONL, and Parquet query responses.
 - Add query options for SQL dialect and expanded compute sizes.

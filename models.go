@@ -128,6 +128,7 @@ type QueryRequest struct {
 	Format      *QueryFormat `json:"format,omitempty"`
 	Limit       *int         `json:"limit,omitempty"`
 	Offset      *int         `json:"offset,omitempty"`
+	Params      any          `json:"params,omitempty"`
 	QueryID     *string      `json:"query_id,omitempty"`
 	RequestedBy *string      `json:"requested_by,omitempty"`
 	Sanitize    *bool        `json:"sanitize,omitempty"`
